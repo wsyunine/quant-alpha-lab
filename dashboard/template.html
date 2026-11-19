@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quant-alpha-lab · 多因子挖掘可视化</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+        onerror="document.getElementById('cdn-warn').style.display='block'"></script>
+<style>
+  :root {
+    --bg: #fafaf8; --card: #ffffff; --border: #e6e6e0;
+    --ink: #26313d; --ink2: #6b7280; --accent: #c0392b;
+    --green: #27ae60; --blue: #2980b9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+         font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+
+  header { padding: 26px 40px 18px; }
+  header h1 { font-size: 21px; font-weight: 700; letter-spacing: .3px; }
+  header .sub { color: var(--ink2); font-size: 12.5px; margin-top: 7px; }
+  .chips { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .chip { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+          padding: 7px 14px; font-size: 12.5px; color: var(--ink2); }
+  .chip b { font-size: 14px; color: var(--ink); margin-left: 2px; }
+
+  /* ---- tabs ---- */
+  .tabs { position: sticky; top: 0; z-index: 20; background: rgba(250,250,248,.96);
+          backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+          padding: 0 40px; display: flex; }
+  .tab { padding: 13px 22px 11px; font-size: 14px; color: var(--ink2); cursor: pointer;
+         border-bottom: 2.5px solid transparent; user-select: none; }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .panel { display: none; padding: 26px 40px 70px; max-width: 1280px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  .panel h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .desc { color: var(--ink2); font-size: 13px; line-height: 1.9;
+          margin-bottom: 20px; }
+  .desc b { color: var(--ink); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+          padding: 18px 20px; margin-bottom: 16px; }
+  .card .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .card .hint { color: var(--ink2); font-weight: 400; font-size: 12px; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { padding: 5px 13px; border-radius: 16px; border: 1px solid var(--border);
+          background: #fff; font-size: 12.5px; cursor: pointer; color: var(--ink2); }
+  .pill:hover { border-color: #bbb; }
+  .pill.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chart { width: 100%; height: 440px; }
+  .chart-sm { width: 100%; height: 330px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 920px) { .two-col { grid-template-columns: 1fr; } }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { background: #f5f5f0; padding: 9px 12px; text-align: right; font-weight: 600;
+       border-bottom: 1px solid var(--border); white-space: nowrap; color: #555; }
+  th:first-child, td:first-child { text-align: left; }
+  td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #f0f0ea;
+       white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: #fbfbf6; }
+  .pos { color: var(--accent); font-weight: 600; }
+  .neg { color: var(--green); font-weight: 600; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+           gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+          padding: 15px 18px; }
+  .stat .label { font-size: 11.5px; color: var(--ink2); margin-bottom: 7px; }
+  .stat .value { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums;
+                  overflow-wrap: anywhere; line-height: 1.3; }
+  .stat .value.sm { font-size: 13px; font-weight: 600; }
+
+  .note { font-size: 12.5px; color: var(--ink2); line-height: 1.95; margin-top: 12px; }
+  .note b { color: var(--ink); }
+  #cdn-warn { display: none; margin: 12px 40px; padding: 12px 16px; background: #fdecea;
+              border: 1px solid #f5b7b1; border-radius: 8px; font-size: 13px; color: #922b21; }
+  .footer { color: #b3b3ac; font-size: 11.5px; text-align: center; padding: 30px 0 40px; }
+</style>
+</head>
+<body>
+<div id="cdn-warn">⚠️ ECharts CDN 加载失败（可能无网络）。表格仍可显示，图表需联网后刷新。</div>
+
+<header>
+  <h1>quant-alpha-lab · 多因子挖掘可视化面板</h1>
+  <div class="sub">数据源：Tushare A 股日线（前复权） · 因子评价：截面 Spearman IC · 模型：walk-forward GBDT 多空 · 年化口径：243 交易日</div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="p-data">① 数据</div>
+  <div class="tab" data-tab="p-factor">② 因子</div>
+  <div class="tab" data-tab="p-eval">③ 评价</div>
+  <div class="tab" data-tab="p-bt">④ 回测</div>
+</div>
+
+<!-- ================= ① 数据 ================= -->
+<div class="panel active" id="p-data">
+  <h2>数据板块</h2>
+  <div class="desc">Tushare 日线数据，已重建为<b>前复权</b>价格（除权除息日不再出现假跳空）。点击股票标签切换 K 线，鼠标滚轮缩放、拖动平移。</div>
+  <div class="card">
+    <div class="pills" id="stock-pills"></div>
+    <div id="kline" class="chart"></div>
+  </div>
+  <div class="card">
+    <div class="title">最近交易日明细 <span class="hint">（价格为前复权口径；成交量单位：股，成交额单位：元）</span></div>
+    <div style="overflow-x:auto; margin-top:10px;"><table id="ohlc-table"></table></div>
+  </div>
+</div>
+
+<!-- ================= ② 因子 ================= -->
+<div class="panel" id="p-factor">
+  <h2>因子板块</h2>
+  <div class="desc">每个因子都是"把某只股票最近的量价信息压缩成一个数字的公式"。折线图看<b>单只股票因子的时间走势</b>；下方快照表看<b>最近一天的截面</b>——因子只在一排股票互相比较时才有意义。</div>
+  <div class="card">
+    <div class="pills" id="factor-pills"></div>
+    <div class="pills" id="factor-stock-pills"></div>
+    <div id="factor-line" class="chart-sm"></div>
+    <div class="note" id="factor-def"></div>
+  </div>
+  <div class="card">
+    <div class="title">最近交易日截面快照 <span class="hint">（每行一只股票，每列一个因子值）</span></div>
+    <div style="overflow-x:auto; margin-top:10px;"><table id="factor-table"></table></div>
+  </div>
+</div>
+
+<!-- ================= ③ 评价 ================= -->
+<div class="panel" id="p-eval">
+  <h2>评价板块</h2>
+  <div class="desc">三个问题审问每个因子：<b>IC</b>（因子排序与未来收益排序的秩相关，预测力）、<b>ICIR</b>（IC 的均值÷波动，稳定性）、<b>t 值</b>（ICIR×√天数，|t|&gt;2 为 95% 置信显著）。热力图则是"按因子分组实际建仓"的钱分布：颜色越红，该组日均收益越高。</div>
+  <div class="card">
+    <div class="title">因子评价汇总表 <span class="hint">（按 |t| 降序；IC 为负 = 反向因子，如低波异象"波动大的未来跑输"）</span></div>
+    <div style="overflow-x:auto; margin-top:10px;"><table id="eval-table"></table></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="title">t 统计量 <span class="hint">（深色=|t|≥2 显著，灰色=不显著）</span></div><div id="t-bar" class="chart-sm"></div></div>
+    <div class="card"><div class="title">ICIR <span class="hint">（深色=|ICIR|≥0.3 可用）</span></div><div id="icir-bar" class="chart-sm"></div></div>
+  </div>
+  <div class="card">
+    <div class="title">分组回测热力图 <span class="hint">（G1=因子值最低组 → G5=最高组；格内为该组日均收益 %；红=正 绿=负）</span></div>
+    <div id="heatmap" class="chart-sm"></div>
+    <div class="note" id="mono-note"></div>
+  </div>
+</div>
+
+<!-- ================= ④ 回测 ================= -->
+<div class="panel" id="p-bt">
+  <h2>回测板块</h2>
+  <div class="desc">Walk-forward 多空回测：每 <b>20 天</b>用过去 <b>180 天</b>重训 GBDT，每天按预测排序<b>做多 top 20%、做空 bottom 20%</b>，扣单边 5bps 成本。基准是同期等权买入全部股票（只做多的"躺平"对照）。以下全部为<b>样本外</b>结果。</div>
+  <div class="cards" id="bt-cards"></div>
+  <div class="card">
+    <div class="title">净值曲线：策略（多空） vs 等权基准（只做多）</div>
+    <div id="nav-chart" class="chart"></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="title">回撤 <span class="hint">（从净值最高点的下跌幅度）</span></div><div id="dd-chart" class="chart-sm"></div></div>
+    <div class="card"><div class="title">日换手率 <span class="hint">（名单更换比例，越高成本越重）</span></div><div id="to-chart" class="chart-sm"></div></div>
+  </div>
+  <div class="card">
+    <div class="title">怎么读这张图</div>
+    <div class="note" style="margin-top:6px;" id="bt-note"></div>
+  </div>
+</div>
+
+<div class="footer">quant-alpha-lab · 由 dashboard/build_dashboard.py 从 pipeline 真实输出生成 · 数据仅供研究学习</div>
+
+<script>
+const DATA = __DATA__;
+
+/* ---------- utils ---------- */
+const fmtPct = (v, d=2) => (v>=0?"+":"") + (v*100).toFixed(d) + "%";
+const cls = v => v >= 0 ? "pos" : "neg";          // 红涨绿跌
+const fmtInt = v => v == null ? "—" : Math.round(v).toLocaleString("zh-CN");
+const table = (el, headers, rows) => {
+  document.getElementById(el).innerHTML =
+    "<thead><tr>" + headers.map(h=>`<th>${h}</th>`).join("") + "</tr></thead><tbody>"
+    + rows.map(r=>"<tr>"+r.map(c=>`<td>${c}</td>`).join("")+"</tr>").join("") + "</tbody>";
+};
+const charts = [];
+const mkChart = id => { const c = echarts.init(document.getElementById(id)); charts.push(c); return c; };
+
+/* ---------- tabs ---------- */
+function showTab(id) {
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id===id));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===id));
+  charts.forEach(c => { if (c.getDom().offsetParent !== null) c.resize(); });
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
+
+/* ---------- header chips ---------- */
+document.getElementById("chips").innerHTML =
+  `<div class="chip">股票<b>${DATA.meta.n_stocks}</b>只</div>
+   <div class="chip">交易日<b>${DATA.meta.n_days}</b>天</div>
+   <div class="chip">区间<b>${DATA.meta.range}</b></div>
+   <div class="chip">因子<b>${DATA.meta.n_factors}</b>个</div>
+   <div class="chip">样本外回测<b>${DATA.backtest.stats.n_days}</b>天</div>`;
+
+/* ---------- ① data ---------- */
+const codes = Object.keys(DATA.stocks);
+const nameOf = c => DATA.stocks[c].name;
+let curStock = codes[0];
+document.getElementById("stock-pills").innerHTML =
+  codes.map(c=>`<button class="pill active" data-c="${c}">${nameOf(c)}</button>`).join("");
+
+const kChart = mkChart("kline");
+function drawK(code) {
+  const s = DATA.stocks[code];
+  const n = s.dates.length, start = Math.max(0, n-250);
+  const dates = s.dates.slice(start);
+  const kdata = dates.map((_,i)=>{ const j=start+i; return [s.open[j], s.close[j], s.low[j], s.high[j]]; });
+  const vol = dates.map((_,i)=>{ const j=start+i;
+    return [j, s.volume[j], s.close[j]>=s.open[j] ? 1 : -1]; });
+  kChart.setOption({
+    animation:false,
+    axisPointer:{link:[{xAxisIndex:"all"}]},
+    tooltip:{trigger:"axis", axisPointer:{type:"cross"},
+      formatter(ps){ let out=`<b>${ps[0].axisValue}</b><br>`;
+        ps.forEach(p=>{ if(p.seriesType==="candlestick"){ const d=p.value;
+          out+=`开 ${d[1]}　收 <span style="color:${d[2]>=d[1]?'#c0392b':'#27ae60'};font-weight:700">${d[2]}</span><br>低 ${d[3]}　高 ${d[4]}`;
+          } else out+=`<br>成交量 ${fmtInt(p.value[1])} 股`;});
+        return out;}},
+    grid:[{left:64,right:16,top:16,height:"57%"},{left:64,right:16,top:"74%",height:"17%"}],
+    xAxis:[{type:"category",data:dates,boundaryGap:true,
+            axisLine:{lineStyle:{color:"#ccc"}},axisLabel:{color:"#888"}},
+           {type:"category",gridIndex:1,data:dates,axisLabel:{show:false},axisLine:{show:false}}],
+    yAxis:[{scale:true,splitLine:{lineStyle:{color:"#f0f0ea"}},axisLabel:{color:"#888"}},
+           {gridIndex:1,axisLabel:{show:false},splitLine:{show:false}}],
+    dataZoom:[{type:"inside",xAxisIndex:[0,1],start:40,end:100},
+              {type:"slider",xAxisIndex:[0,1],bottom:6,height:16}],
+    series:[
+      {name:"K线",type:"candlestick",data:kdata,
+       itemStyle:{color:"#c0392b",color0:"#27ae60",borderColor:"#c0392b",borderColor0:"#27ae60"}},
+      {name:"成交量",type:"bar",xAxisIndex:1,yAxisIndex:1,data:vol,
+       itemStyle:{color:p=>p.value[2]===1?"#e8a9a4":"#a8d5b9"}}
+    ]});
+}
+
+function ohlcRows(code) {
+  const s = DATA.stocks[code], n = s.dates.length, rows = [];
+  for (let i=n-1; i>=Math.max(0,n-15); i--) {
+    const chg = i>0 ? (s.close[i]/s.close[i-1]-1) : 0;
+    rows.push([s.dates[i],
+      `<span class="${cls(chg)}">${s.open[i].toFixed(2)}</span>`,
+      `<span class="${cls(chg)}">${s.close[i].toFixed(2)}</span>`,
+      s.high[i].toFixed(2), s.low[i].toFixed(2),
+      `<span class="${cls(chg)}">${fmtPct(chg)}</span>`,
+      fmtInt(s.volume[i]), fmtInt(s.amount[i])]);
+  }
+  return rows;
+}
+const OHLC_HEADERS = ["日期","开盘","收盘","最高","最低","涨跌幅","成交量(股)","成交额(元)"];
+drawK(curStock);
+table("ohlc-table", OHLC_HEADERS, ohlcRows(curStock));
+
+document.getElementById("stock-pills").addEventListener("click", e => {
+  if (!e.target.dataset.c) return;
+  curStock = e.target.dataset.c;
+  document.querySelectorAll("#stock-pills .pill")
+    .forEach(p=>p.classList.toggle("active", p.dataset.c===curStock));
+  drawK(curStock);
+  table("ohlc-table", OHLC_HEADERS, ohlcRows(curStock));
+});
+
+/* ---------- ② factors ---------- */
+const fnames = Object.keys(DATA.factors);
+let curFactor = fnames[0], curFStock = codes[0];
+document.getElementById("factor-pills").innerHTML =
+  fnames.map(f=>`<button class="pill active" data-f="${f}">${f}</button>`).join("");
+document.getElementById("factor-stock-pills").innerHTML =
+  codes.map(c=>`<button class="pill active" data-c="${c}">${nameOf(c)}</button>`).join("");
+
+const fChart = mkChart("factor-line");
+function drawFactorLine() {
+  const f = DATA.factors[curFactor];
+  const si = f.symbols.indexOf(curFStock);
+  if (si < 0) return;
+  fChart.setOption({
+    animation:false,
+    tooltip:{trigger:"axis"},
+    grid:{left:64,right:18,top:22,bottom:44},
+    xAxis:{type:"category",data:f.dates,axisLabel:{color:"#888"}},
+    yAxis:{scale:true,splitLine:{lineStyle:{color:"#f0f0ea"}},axisLabel:{color:"#888"}},
+    dataZoom:[{type:"inside"},{type:"slider",bottom:4,height:14}],
+    series:[{name:`${nameOf(curFStock)} · ${curFactor}`,type:"line",
+      data:f.values.map(r=>r[si]), showSymbol:false,
+      lineStyle:{width:1.7,color:"#2980b9"}}]});
+  document.getElementById("factor-def").innerHTML =
+    `📖 <b>${curFactor}</b>：${DATA.factorDefs[curFactor] || ""}`;
+}
+drawFactorLine();
+document.getElementById("factor-pills").addEventListener("click", e => {
+  if (!e.target.dataset.f) return;
+  curFactor = e.target.dataset.f;
+  document.querySelectorAll("#factor-pills .pill")
+    .forEach(p=>p.classList.toggle("active", p.dataset.f===curFactor));
+  drawFactorLine();
+});
+document.getElementById("factor-stock-pills").addEventListener("click", e => {
+  if (!e.target.dataset.c) return;
+  curFStock = e.target.dataset.c;
+  document.querySelectorAll("#factor-stock-pills .pill")
+    .forEach(p=>p.classList.toggle("active", p.dataset.c===curFStock));
+  drawFactorLine();
+});
+
+(function factorTable(){
+  const f0 = DATA.factors[fnames[0]];
+  const rows = f0.symbols.map((s, si) =>
+    [nameOf(s)].concat(fnames.map(f=>{
+      const v = DATA.factors[f].values[DATA.factors[f].values.length-1][si];
+      return v==null ? "—" : v.toFixed(4);
+    })));
+  table("factor-table", ["股票"].concat(fnames), rows);
+})();
+
+/* ---------- ③ evaluation ---------- */
+(function evalSection(){
+  const ev = DATA.eval;
+  const sorted = [...ev].sort((a,b)=>Math.abs(b.t_stat)-Math.abs(a.t_stat));
+  table("eval-table",
+    ["因子","IC_mean","ICIR","t_stat","IC>0比例","天数","LS Sharpe(年化)"],
+    sorted.map(r=>[
+      r.factor,
+      `<span class="${cls(r.IC_mean)}">${r.IC_mean.toFixed(4)}</span>`,
+      `<span class="${cls(r.ICIR)}">${r.ICIR.toFixed(3)}</span>`,
+      `<span style="${Math.abs(r.t_stat)>=2 ? "" : "color:#999"}" class="${Math.abs(r.t_stat)>=2?cls(r.t_stat):""}">${r.t_stat.toFixed(2)}</span>`,
+      (r.ic_pos*100).toFixed(1)+"%", r.n_days,
+      `<span class="${cls(r.ls_sharpe)}">${r.ls_sharpe.toFixed(3)}</span>`
+    ]));
+
+  const sortedF = sorted.map(r=>r.factor);
+  const barOpt = (vals, threshold) => ({
+    animation:false,
+    tooltip:{trigger:"axis"},
+    grid:{left:96,right:44,top:10,bottom:26},
+    xAxis:{type:"value",splitLine:{lineStyle:{color:"#f0f0ea"}}},
+    yAxis:{type:"category",data:sortedF,inverse:true,axisLabel:{color:"#555"}},
+    series:[{type:"bar",data:sortedF.map(f=>{
+        const v = vals[f];
+        return {value:v, itemStyle:{color: Math.abs(v)>=threshold ? (v>=0?"#c0392b":"#27ae60") : "#b9b9b2"}};
+      }),
+      label:{show:true,position:"right",fontSize:11,color:"#666",
+        formatter:p=>p.value.toFixed(3)}}]});
+  mkChart("t-bar").setOption(barOpt(
+    Object.fromEntries(ev.map(r=>[r.factor,r.t_stat])), 2));
+  mkChart("icir-bar").setOption(barOpt(
+    Object.fromEntries(ev.map(r=>[r.factor,r.ICIR])), 0.3));
+
+  const hm = DATA.groupMeans;
+  const maxAbs = Math.max(...hm.cells.map(c=>Math.abs(c[2])), 0.01);
+  const fIdx = {}, gIdx = {};
+  hm.factors.forEach((f,i)=>fIdx[f]=i);
+  hm.groups.forEach((g,i)=>gIdx[g]=i);
+  const hmCells = hm.cells.map(c=>[gIdx[c[1]], fIdx[c[0]], c[2]]);
+  mkChart("heatmap").setOption({
+    animation:false,
+    tooltip:{formatter:p=>`${hm.factors[p.value[1]]} · ${hm.groups[p.value[0]]}<br>日均收益 <b>${p.value[2].toFixed(3)}%</b>`},
+    grid:{left:112,right:100,top:14,bottom:40},
+    xAxis:{type:"category",data:hm.groups,axisLabel:{color:"#555"}},
+    yAxis:{type:"category",data:hm.factors,inverse:true,axisLabel:{color:"#555"}},
+    visualMap:{min:-maxAbs,max:maxAbs,orient:"vertical",right:10,top:"center",
+      inRange:{color:["#27ae60","#f4f4f0","#c0392b"]},
+      textStyle:{formatter:v=>v.toFixed(2)+"%"}},
+    series:[{type:"heatmap",data:hmCells,
+      label:{show:true,fontSize:10.5,formatter:p=>p.value[2].toFixed(3)+"%"},
+      itemStyle:{borderColor:"#fff",borderWidth:2}}]});
+
+  const best = [...ev].sort((a,b)=>Math.abs(b.ls_sharpe)-Math.abs(a.ls_sharpe))[0];
+  document.getElementById("mono-note").innerHTML =
+    `<b>观察方法：</b>一行从 G1 到 G5 若颜色平滑渐变（单调），说明该因子线性有效；若只在两端出现深色，说明只对极端股票有效、中间是噪声。` +
+    `当前多空价差年化 Sharpe 绝对值最大的是 <b>${best.factor}</b>（${best.ls_sharpe.toFixed(3)}）。`;
+})();
+
+/* ---------- ④ backtest ---------- */
+(function btSection(){
+  const st = DATA.backtest.stats;
+  document.getElementById("bt-cards").innerHTML = [
+    ["年化收益（样本外）", fmtPct(st.ann_return), st.ann_return>=0?"pos":"neg", false],
+    ["Sharpe（年化）", st.sharpe.toFixed(3), st.sharpe>=0?"pos":"neg", false],
+    ["最大回撤", fmtPct(st.max_drawdown), "neg", false],
+    ["日均换手率", (st.avg_turnover*100).toFixed(1)+"%", "", false],
+    ["成本假设", st.cost_bps+" bps / 单边", "", true],
+    ["GBDT 后端", st.backend, "", true],
+  ].map(([l,v,c,sm])=>`<div class="stat"><div class="label">${l}</div><div class="value ${sm?"sm":""} ${c}">${v}</div></div>`).join("");
+
+  const bt = DATA.backtest;
+  mkChart("nav-chart").setOption({
+    animation:false,
+    tooltip:{trigger:"axis"},
+    legend:{data:["策略净值(多空)","等权基准(只做多)"],top:2,textStyle:{color:"#666"}},
+    grid:{left:64,right:20,top:34,bottom:48},
+    xAxis:{type:"category",data:bt.dates,axisLabel:{color:"#888"}},
+    yAxis:{scale:true,splitLine:{lineStyle:{color:"#f0f0ea"}},axisLabel:{color:"#888"}},
+    dataZoom:[{type:"inside"},{type:"slider",bottom:6,height:14}],
+    series:[
+      {name:"策略净值(多空)",type:"line",data:bt.nav,showSymbol:false,
+       lineStyle:{width:2,color:"#c0392b"},areaStyle:{color:"rgba(192,57,43,.06)"}},
+      {name:"等权基准(只做多)",type:"line",data:bt.bench_nav,showSymbol:false,
+       lineStyle:{width:1.6,type:"dashed",color:"#888"}}
+    ]});
+
+  mkChart("dd-chart").setOption({
+    animation:false, tooltip:{trigger:"axis"},
+    grid:{left:60,right:16,top:14,bottom:34},
+    xAxis:{type:"category",data:bt.dates,axisLabel:{color:"#888"}},
+    yAxis:{axisLabel:{color:"#888",formatter:v=>v+"%"}},
+    series:[{type:"line",data:bt.drawdown.map(v=>+(v*100).toFixed(2)),showSymbol:false,
+      lineStyle:{width:1.2,color:"#27ae60"},areaStyle:{color:"rgba(39,174,96,.18)"}}]});
+
+  mkChart("to-chart").setOption({
+    animation:false, tooltip:{trigger:"axis"},
+    grid:{left:60,right:16,top:14,bottom:34},
+    xAxis:{type:"category",data:bt.dates,axisLabel:{color:"#888"}},
+    yAxis:{axisLabel:{color:"#888",formatter:v=>v+"%"}},
+    series:[{type:"bar",data:bt.turnover.map(v=>+(v*100).toFixed(1)),
+      itemStyle:{color:"#85a6c9"}}]});
+
+  document.getElementById("bt-note").innerHTML =
+    `<b>① 净值图：</b>策略线是"做多预测最强 20% + 做空最弱 20%"的净值，基准线是等权只买入持有；两条线的<b>差距</b>才是选股能力，同涨同跌的部分是 Beta。<br>` +
+    `<b>② 回撤图：</b>衡量从净值最高点最深跌多少——实盘中决定你能不能拿得住。<br>` +
+    `<b>③ 换手率图：</b>每天更换的仓位比例，乘以双边成本就是每天的成本拖累。` +
+    (st.sharpe < 0
+      ? `<br><b style="color:#c0392b">当前结果为负——这是预期内的真实发现：</b>10 只股票截面太窄（多空各仅 2 只，个股噪声淹没因子信号），训练样本也仅约 1800 条。` +
+        `改进方向：扩池到全市场（按交易日拉取全部股票），IC 与多空表现才会获得统计意义。把这次"诚实的失败"和归因写进报告，比一个漂亮的数字更有说服力。`
+      : `<br><b style="color:#27ae60">当前结果为正：</b>继续检查成本假设与隐性未来函数，防止回测高估。`);
+})();
+
+window.addEventListener("resize", () => charts.forEach(c => { if (c.getDom().offsetParent) c.resize(); }));
+</script>
+</body>
+</html>

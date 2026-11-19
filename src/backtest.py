@@ -96,14 +96,14 @@ def long_short_backtest(preds: pd.DataFrame, fwd_panel: pd.DataFrame,
     series = pd.Series({d: r for d, r in rets}).sort_index()
     if series.empty:
         return {}
-    ann = np.sqrt(365)
+    ann = np.sqrt(243)  # A-share: ~243 trading days/year
     sharpe = series.mean() / series.std() * ann if series.std() > 0 else np.nan
     cum = (1 + series).cumprod()
     max_dd = (cum / cum.cummax() - 1).min()
     return {
         "daily_returns": series,
         "cumulative": cum,
-        "ann_return": round(series.mean() * 365, 4),
+        "ann_return": round(series.mean() * 243, 4),
         "sharpe": round(sharpe, 3),
         "max_drawdown": round(max_dd, 4),
         "avg_turnover": round(np.mean(turnovers), 4),

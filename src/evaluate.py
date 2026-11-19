@@ -66,6 +66,6 @@ def evaluate_all(panels: dict, fwd_panel: pd.DataFrame, n_groups: int = 5) -> pd
         if not groups.empty:
             ls = groups["LS"]
             stat["LS_sharpe_ann"] = round(
-                ls.mean() / ls.std() * np.sqrt(365), 3) if ls.std() > 0 else np.nan
+                ls.mean() / ls.std() * np.sqrt(243), 3) if ls.std() > 0 else np.nan  # A-share: ~243 trading days/year
         summary[name] = stat
     return pd.DataFrame(summary).T.sort_values("ICIR", ascending=False)
