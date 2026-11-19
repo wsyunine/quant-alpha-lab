@@ -1,0 +1,13 @@
+# private notes
+notes/
+
+# data cache (regenerable via src/data_tushare.py)
+data/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# os
+.DS_Store
