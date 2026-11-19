@@ -43,8 +43,7 @@ python src/run_pipeline.py --symbols 000001.SZ 600519.SH 300750.SZ
 自动回退到 sklearn 的 `HistGradientBoostingRegressor`（同类算法，结果可直接对比）。
 想用 LightGBM 时执行 `brew install libomp` 即可。
 
-## 已知简化（诚实声明，面试可讲）
+## 已知简化
 
 - 股票池为少数现存成分股 → 截面过窄、幸存者偏差；扩展方向：按交易日拉全市场、用历史成分股回溯
 - 日频、等权、简单成本模型 → 扩展方向：滑点模型、T+1 与涨跌停约束、协方差风控
-- 复权：积分不足时用 pct_chg 重建（有两位小数舍入误差）；有 2000 积分后建议切换 adj_factor
